@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Ningún dato puede salir de este origen: sin CDNs, sin fetch a terceros. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="theme-color" content="#2f5d50">
+  <meta name="description" content="Bitácora laboral local: tareas, actividades diarias, dailies y resúmenes con IA.">
+  <title>Bitácora laboral</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles/app.css">
+  <script type="module" src="src/main.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#view">Saltar al contenido</a>
+  <div id="app" class="app">
+    <p class="loading" role="status">Cargando tu bitácora…</p>
+  </div>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <noscript>Esta aplicación necesita JavaScript.</noscript>
+</body>
+</html>

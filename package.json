@@ -1,0 +1,14 @@
+{
+  "name": "bitacora-laboral",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bitácora laboral local: tareas persistentes, actividades diarias, dailies y prompts de resumen semanal y mensual.",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
