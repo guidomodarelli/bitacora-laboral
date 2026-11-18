@@ -2,7 +2,7 @@
   "name": "Bitácora laboral",
   "short_name": "Bitácora",
   "description": "Tareas persistentes, actividades diarias, dailies y resúmenes con IA. Todo local.",
-  "lang": "es",
+  "lang": "es-AR",
   "start_url": "./#/hoy",
   "scope": "./",
   "display": "standalone",
