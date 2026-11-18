@@ -8,12 +8,13 @@ on:
   issue_comment:
     types: [created]
 
-concurrency:
-  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
   review:
+    # La concurrencia va en el job y no en el workflow: así un comentario cualquiera
+    # (por ejemplo, de otro bot), cuyo job se saltea, no cancela una revisión en curso.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
     if: |
       (github.event_name == 'pull_request' && !github.event.pull_request.draft) ||
       (github.event_name == 'issue_comment' &&
