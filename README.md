@@ -4,6 +4,10 @@ Bitácora personal para registrar tareas, actividades diarias y resultados, prep
 
 ## Uso
 
+Publicada en **https://guidomodarelli.github.io/bitacora-laboral/**: abrila y desde el menú del navegador instalala como app. Tus datos quedan en tu navegador; el sitio no tiene backend.
+
+Para correrla localmente:
+
 ```bash
 node scripts/serve.js
 ```
