@@ -8,10 +8,13 @@ import { formatDateLong, formatDateShort } from '../../domain/date-format.js';
 import { todayKey } from '../../domain/dates.js';
 import { createLink, isSafeLinkUrl } from '../../domain/links.js';
 import { normalizeSearchText } from '../../domain/text-search.js';
-import { addActivity, addResult, changeTaskStatus, deleteTask, ensureProject, togglePlannedTask, updateTask } from '../../services/data-store.js';
-import { askStatusNote, emptyState, linkEditor, projectChip, projectDatalist, runAction, statusBadge, statusOptions, taskCreateForm } from '../components.js';
+import { formatCount } from '../../domain/text-format.js';
+import { addActivity, addResult, deleteTask, ensureProject, togglePlannedTask, updateTask } from '../../services/data-store.js';
+import { emptyState, linkEditor, projectChip, projectDatalist, runAction, statusBadge, taskCreateForm } from '../components.js';
 import { h, optionElements } from '../dom.js';
+import { icon } from '../icons.js';
 import { activityItem, resultItem, statusChangeItem } from '../record-items.js';
+import { statusMenu } from '../status-menu.js';
 import { uiDrafts } from '../ui-state.js';
 
 const STATUS_FILTER_OPEN = 'open';
@@ -69,7 +72,7 @@ function renderTaskList(snapshot) {
             statusBadge(task.status),
             h('span', { class: 'task-table__title' }, task.title),
             projectChip(snapshot.projects.find((project) => project.id === task.projectId)),
-            h('span', { class: 'text-muted' }, `${activityCountByTask.get(task.id) ?? 0} avances`),
+            h('span', { class: 'text-muted' }, formatCount(activityCountByTask.get(task.id) ?? 0, 'avance', 'avances')),
             h('span', { class: 'text-muted' }, lastActivityByTask.has(task.id) ? `último ${formatDateShort(lastActivityByTask.get(task.id))}` : `creada ${formatDateShort(task.createdOn)}`),
           ),
         )))
@@ -102,55 +105,50 @@ function taskTimeline(task, snapshot) {
   )));
 }
 
+/** Prefijos del valor del selector de tipo: separan actividades de resultados en un mismo campo. */
+const RECORD_TYPE_PREFIX = Object.freeze({ ACTIVITY: 'activity:', RESULT: 'result:' });
+
 /**
+ * Un solo formulario para registrar un avance o un resultado: el tipo decide qué se guarda.
  * @param {import('../../domain/task-history.js').Task} task
  */
-function addProgressForms(task) {
+function addRecordForm(task) {
   const today = todayKey();
-  const activityKey = `task-${task.id}-activity`;
-  const resultKey = `task-${task.id}-result`;
+  const textKey = `task-${task.id}-record-text`;
+  const typeKey = `task-${task.id}-record-type`;
+  const selectedType = uiDrafts.get(typeKey, `${RECORD_TYPE_PREFIX.ACTIVITY}${ACTIVITY_KIND.WORK}`);
 
-  const onActivitySubmit = async (event) => {
+  const onSubmit = async (event) => {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const form = /** @type {HTMLFormElement} */ (event.currentTarget);
+    const values = Object.fromEntries(new FormData(form));
+    const type = String(values.type ?? '');
     const links = isSafeLinkUrl(String(values.link ?? '').trim()) ? [createLink(String(values.link))] : [];
-    const pendingText = uiDrafts.get(activityKey, '');
-    uiDrafts.delete(activityKey);
-    const saved = await runAction('taskDetail:addActivity', () => addActivity({ date: String(values.date || today), text: String(values.text ?? ''), taskId: task.id, kind: /** @type {any} */ (values.kind), links }), 'Avance registrado');
-    if (!saved) uiDrafts.set(activityKey, pendingText);
-  };
-  const onResultSubmit = async (event) => {
-    event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget));
-    const links = isSafeLinkUrl(String(values.link ?? '').trim()) ? [createLink(String(values.link))] : [];
-    const pendingText = uiDrafts.get(resultKey, '');
-    uiDrafts.delete(resultKey);
-    const saved = await runAction('taskDetail:addResult', () => addResult({ date: String(values.date || today), description: String(values.description ?? ''), taskId: task.id, type: /** @type {any} */ (values.type), links }), 'Resultado registrado');
-    if (!saved) uiDrafts.set(resultKey, pendingText);
+    const date = String(values.date || today);
+    const text = String(values.text ?? '');
+    const pendingText = uiDrafts.get(textKey, '');
+    uiDrafts.delete(textKey);
+    const isResult = type.startsWith(RECORD_TYPE_PREFIX.RESULT);
+    const saved = await runAction('taskDetail:addRecord', () => (isResult
+      ? addResult({ date, description: text, taskId: task.id, type: /** @type {any} */ (type.slice(RECORD_TYPE_PREFIX.RESULT.length)), links })
+      : addActivity({ date, text, taskId: task.id, kind: /** @type {any} */ (type.slice(RECORD_TYPE_PREFIX.ACTIVITY.length)), links })),
+    isResult ? 'Resultado registrado' : 'Avance registrado');
+    if (!saved) uiDrafts.set(textKey, pendingText);
   };
 
-  return h('div', { class: 'stack' },
-    h('form', { class: 'card', onSubmit: onActivitySubmit },
-      h('h2', {}, 'Registrar avance'),
-      h('input', { name: 'text', type: 'text', required: true, placeholder: 'Qué avanzaste', 'aria-label': 'Qué avanzaste', value: uiDrafts.get(activityKey, ''), dataset: { focusKey: activityKey }, onInput: (event) => uiDrafts.set(activityKey, event.target.value) }),
-      h('div', { class: 'form-row' },
-        h('select', { name: 'kind', 'aria-label': 'Tipo' }, optionElements(Object.values(ACTIVITY_KIND).map((kind) => ({ value: kind, label: ACTIVITY_KIND_LABELS[kind] })), ACTIVITY_KIND.WORK)),
-        h('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha' }),
-        h('input', { name: 'link', type: 'url', placeholder: 'Enlace (opcional)', 'aria-label': 'Enlace' }),
-      ),
-      h('div', { class: 'form-actions' }, h('button', { type: 'submit', class: 'button button--primary' }, 'Registrar avance')),
+  const typeOption = (value, label) => h('option', { value, selected: value === selectedType }, label);
+
+  return h('form', { class: 'card', onSubmit },
+    h('h2', {}, 'Registrar'),
+    h('input', { name: 'text', type: 'text', required: true, placeholder: 'Qué avanzaste o qué conseguiste', 'aria-label': 'Qué avanzaste o qué conseguiste', autocomplete: 'off', value: uiDrafts.get(textKey, ''), dataset: { focusKey: textKey }, onInput: (event) => uiDrafts.set(textKey, event.target.value) }),
+    h('div', { class: 'form-row' },
+      h('select', { name: 'type', 'aria-label': 'Tipo', dataset: { focusKey: typeKey }, onChange: (event) => uiDrafts.set(typeKey, event.target.value) },
+        h('optgroup', { label: 'Actividad' }, Object.values(ACTIVITY_KIND).map((kind) => typeOption(`${RECORD_TYPE_PREFIX.ACTIVITY}${kind}`, ACTIVITY_KIND_LABELS[kind]))),
+        h('optgroup', { label: 'Resultado (entregable o impacto)' }, Object.values(RESULT_TYPE).map((type) => typeOption(`${RECORD_TYPE_PREFIX.RESULT}${type}`, RESULT_TYPE_LABELS[type])))),
+      h('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha' }),
+      h('input', { name: 'link', type: 'url', placeholder: 'Enlace (opcional)', 'aria-label': 'Enlace' }),
     ),
-    h('form', { class: 'card', onSubmit: onResultSubmit },
-      h('h2', {}, 'Registrar resultado'),
-      h('p', { class: 'hint' }, 'Un entregable o impacto real: funcionalidad terminada, bug resuelto, cobertura mejorada…'),
-      h('input', { name: 'description', type: 'text', required: true, placeholder: 'Qué conseguiste', 'aria-label': 'Qué conseguiste', value: uiDrafts.get(resultKey, ''), dataset: { focusKey: resultKey }, onInput: (event) => uiDrafts.set(resultKey, event.target.value) }),
-      h('div', { class: 'form-row' },
-        h('select', { name: 'type', 'aria-label': 'Tipo de resultado' }, optionElements(Object.values(RESULT_TYPE).map((type) => ({ value: type, label: RESULT_TYPE_LABELS[type] })), RESULT_TYPE.FEATURE)),
-        h('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha' }),
-        h('input', { name: 'link', type: 'url', placeholder: 'Enlace (opcional)', 'aria-label': 'Enlace' }),
-      ),
-      h('div', { class: 'form-actions' }, h('button', { type: 'submit', class: 'button' }, 'Registrar resultado')),
-    ),
+    h('div', { class: 'form-actions' }, h('button', { type: 'submit', class: 'button button--primary' }, 'Registrar')),
   );
 }
 
@@ -168,15 +166,6 @@ function renderTaskDetail(taskId, snapshot) {
   const isPlannedToday = snapshot.dayPlans.find((dayPlan) => dayPlan.date === today)?.taskIds.includes(task.id) ?? false;
   const datalistId = `task-${task.id}-projects`;
 
-  const onStatusSubmit = (event) => {
-    event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget));
-    const status = /** @type {any} */ (values.status);
-    const note = String(values.note ?? '').trim() || askStatusNote(status);
-    if (note === null) return;
-    runAction('taskDetail:changeTaskStatus', () => changeTaskStatus(task.id, status, { dateKey: String(values.date || today), note }), 'Estado actualizado');
-  };
-
   const onDelete = async () => {
     if (!window.confirm(`¿Borrar la tarea «${task.title}»? Sus actividades y resultados se conservan como registros sin tarea.`)) return;
     const deleted = await runAction('taskDetail:deleteTask', () => deleteTask(task.id).then(() => true), 'Tarea borrada');
@@ -191,9 +180,8 @@ function renderTaskDetail(taskId, snapshot) {
         value: task.title,
         'aria-label': 'Título de la tarea',
         dataset: { focusKey: `task-title-${task.id}` },
-        onChange: (event) => runAction('taskDetail:updateTitle', () => updateTask(task.id, { title: event.target.value })),
+        onChange: (event) => runAction('taskDetail:updateTitle', () => updateTask(task.id, { title: event.target.value }), 'Título guardado'),
       }),
-      statusBadge(task.status),
     ),
     h('div', { class: 'columns columns--wide-left' },
       h('div', { class: 'stack' },
@@ -209,7 +197,7 @@ function renderTaskDetail(taskId, snapshot) {
                 onChange: (event) => runAction('taskDetail:updateProject', async () => {
                   const nextProject = await ensureProject(event.target.value);
                   await updateTask(task.id, { projectId: nextProject?.id ?? null });
-                }),
+                }, 'Proyecto guardado'),
               }),
               projectDatalist(snapshot.projects, datalistId)),
             h('div', { class: 'field' }, h('span', {}, 'Creada'), h('span', {}, formatDateLong(task.createdOn))),
@@ -220,7 +208,7 @@ function renderTaskDetail(taskId, snapshot) {
               rows: 3,
               value: task.description,
               dataset: { focusKey: `task-description-${task.id}` },
-              onChange: (event) => runAction('taskDetail:updateDescription', () => updateTask(task.id, { description: event.target.value })),
+              onChange: (event) => runAction('taskDetail:updateDescription', () => updateTask(task.id, { description: event.target.value }), 'Descripción guardada'),
             })),
           h('div', { class: 'field' }, h('span', {}, 'Enlaces de la tarea'),
             linkEditor(task.links, (links) => runAction('taskDetail:updateLinks', () => updateTask(task.id, { links })), `task-link-${task.id}`)),
@@ -228,25 +216,20 @@ function renderTaskDetail(taskId, snapshot) {
         h('section', { class: 'card' }, h('h2', {}, 'Historial por fecha'), taskTimeline(task, snapshot)),
       ),
       h('div', { class: 'stack' },
-        h('form', { class: 'card', onSubmit: onStatusSubmit },
+        h('section', { class: 'card' },
           h('h2', {}, 'Estado'),
-          h('p', { class: 'hint' }, 'El estado se mantiene entre días hasta que lo cambies. Podés registrar el cambio con otra fecha.'),
-          h('div', { class: 'form-row' },
-            h('select', { name: 'status', 'aria-label': 'Nuevo estado' }, statusOptions(TASK_STATUS_ORDER, task.status)),
-            h('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha del cambio' }),
-          ),
-          h('input', { name: 'note', type: 'text', placeholder: 'Nota o motivo del bloqueo (opcional)', 'aria-label': 'Nota del cambio' }),
-          task.blocker ? h('p', { class: 'text-danger' }, `Bloqueada desde ${formatDateShort(task.blocker.since)}: ${task.blocker.reason || 'sin motivo'}`) : null,
-          h('div', { class: 'form-actions' },
-            h('button', { type: 'submit', class: 'button button--primary' }, 'Cambiar estado'),
+          h('div', { class: 'status-row' },
+            statusMenu(task, { menuKey: `detail-status-${task.id}`, allowDate: true }),
             isOpenTaskStatus(task.status)
-              ? h('button', { type: 'button', class: 'button', 'aria-pressed': String(isPlannedToday), onClick: () => runAction('taskDetail:togglePlanned', () => togglePlannedTask(today, task.id)) },
-                isPlannedToday ? '★ Planificada hoy' : '☆ Planificar hoy')
+              ? h('button', { type: 'button', class: 'button button--small plan-button', 'aria-pressed': String(isPlannedToday), onClick: () => runAction('taskDetail:togglePlanned', () => togglePlannedTask(today, task.id)) },
+                icon('starOutline', { filled: isPlannedToday }), isPlannedToday ? 'En el plan de hoy' : 'Planificar hoy')
               : null,
           ),
+          task.blocker ? h('p', { class: 'text-danger' }, `Bloqueada desde ${formatDateShort(task.blocker.since)}: ${task.blocker.reason || 'sin motivo'}`) : null,
+          h('p', { class: 'hint' }, 'El estado se mantiene entre días hasta que lo cambies. Podés registrar el cambio con otra fecha.'),
         ),
-        addProgressForms(task),
-        h('button', { type: 'button', class: 'button button--danger', onClick: onDelete }, 'Borrar tarea'),
+        addRecordForm(task),
+        h('button', { type: 'button', class: 'button button--danger button--small delete-task', onClick: onDelete }, icon('trash'), 'Borrar tarea'),
       ),
     ),
   );

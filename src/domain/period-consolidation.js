@@ -112,7 +112,10 @@ function blockerReasonAt(task, dateKey) {
 export function buildPeriodReport(range, snapshot, { references = new TaskReferenceRegistry() } = {}) {
   const records = collectRecordsInRange(range, snapshot);
   const tasksCreatedInRange = snapshot.tasks.filter((task) => isDateInRange(task.createdOn, range)).map((task) => task.id);
-  const groups = groupRecordsByTask(records, snapshot, { extraTaskIds: tasksCreatedInRange });
+  // Un bloqueo vigente al cierre se reporta aunque la tarea no haya tenido movimiento:
+  // es justo lo que la daily ya está avisando.
+  const tasksBlockedAtEnd = snapshot.tasks.filter((task) => statusAt(task, range.end) === TASK_STATUS.BLOCKED).map((task) => task.id);
+  const groups = groupRecordsByTask(records, snapshot, { extraTaskIds: [...tasksCreatedInRange, ...tasksBlockedAtEnd] });
 
   /** @type {Record<TaskPeriodCategory, number>} */
   const categoryCounts = { completed: 0, progressed: 0, blocked: 0, discarded: 0 };

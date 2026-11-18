@@ -49,6 +49,36 @@ describe('period consolidation', () => {
     assert.deepEqual(report.categoryCounts, { completed: 1, progressed: 1, blocked: 0, discarded: 0 });
   });
 
+  it('reports a task still blocked at the end of the period even without activity in it', () => {
+    const blockedTask = createTestTask({
+      id: 'task-redis',
+      title: 'Migrar sesiones a Redis',
+      status: 'in_progress',
+      createdOn: '2026-11-02',
+      changes: [{ status: 'blocked', date: '2026-11-05', note: 'Esperando acceso al cluster' }],
+    });
+    const snapshot = buildAuthScenario();
+    const report = buildPeriodReport(weekOfNovember9, { ...snapshot, tasks: [...snapshot.tasks, blockedTask] });
+    const blockedEntry = report.taskEntries.find((entry) => entry.task.id === 'task-redis');
+    assert.equal(blockedEntry.category, 'blocked');
+    assert.equal(blockedEntry.blockerReasonAtEnd, 'Esperando acceso al cluster');
+    assert.equal(blockedEntry.activities.length, 0);
+    assert.equal(report.categoryCounts.blocked, 1);
+  });
+
+  it('leaves out a task that was blocked earlier but unblocked before the period ended', () => {
+    const unblockedTask = createTestTask({
+      id: 'task-unblocked',
+      title: 'Configurar CI',
+      status: 'in_progress',
+      createdOn: '2026-11-02',
+      changes: [{ status: 'blocked', date: '2026-11-03' }, { status: 'in_progress', date: '2026-11-06' }],
+    });
+    const snapshot = buildAuthScenario();
+    const report = buildPeriodReport(weekOfNovember9, { ...snapshot, tasks: [...snapshot.tasks, unblockedTask] });
+    assert.equal(report.taskEntries.some((entry) => entry.task.id === 'task-unblocked'), false);
+  });
+
   it('classifies by the status at the end of the period, not the current status', () => {
     const report = buildPeriodReport({ start: '2026-11-09', end: '2026-11-11' }, buildAuthScenario());
     assert.equal(report.taskEntries.find((entry) => entry.task.id === 'task-auth').category, 'progressed');

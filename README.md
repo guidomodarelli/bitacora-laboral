@@ -17,12 +17,18 @@ Abrí `http://localhost:4173` (el puerto se cambia con `BITACORA_PORT`). Desde e
 | Escribís | Resultado |
 |---|---|
 | `Implementé endpoints` | Actividad de la tarea elegida (se recuerda la última) |
-| `@autent implementé endpoints` | Asocia a la tarea cuyo título coincide con «autent» |
+| `@autent implementé endpoints` | Asocia a la tarea cuyo título coincide con «autent» (al escribir `@` se sugieren tareas; Enter o Tab elige) |
 | `! usar JWT` | Registra una decisión |
 | `+ login en producción` | Registra un resultado |
 | Una URL pegada | Se guarda como enlace (PR, ticket o doc, según la URL) |
 
-Atajos: `/` enfoca la captura, `Alt+1…7` cambia de sección.
+Debajo del campo, una línea muestra exactamente qué se va a guardar. Tarea, tipo y fecha están plegados en «Tarea, tipo y fecha».
+
+Atajos: `/` enfoca la captura, `Alt+1…7` cambia de sección. El botón `?` del encabezado los resume.
+
+### Estados
+
+El estado se cambia desde la píldora de cada tarea: elegís el nuevo estado (y el motivo, si es un bloqueo), confirmás con «Aplicar» y el aviso ofrece «Deshacer».
 
 ## Modelo
 
@@ -34,7 +40,7 @@ Atajos: `/` enfoca la captura, `Alt+1…7` cambia de sección.
 ## Reglas de consolidación
 
 - **Daily**: «ayer» es el día laboral anterior (el lunes usa el viernes, y se saltean los feriados). Si ese día no tiene registros, se usa el último día que sí tenga y se avisa.
-- **Semanal**: la semana va de lunes a domingo (ISO). Cada tarea aparece una sola vez, clasificada según su estado al cierre de la semana: `COMPLETADA`, `CON AVANCES`, `BLOQUEADA` o `DESCARTADA`.
+- **Semanal**: la semana va de lunes a domingo (ISO). Cada tarea aparece una sola vez, clasificada según su estado al cierre de la semana: `COMPLETADA`, `CON AVANCES`, `BLOQUEADA` o `DESCARTADA`. Una tarea bloqueada al cierre entra aunque no haya tenido movimiento en la semana.
 - **Mensual**: para cada semana que toca el mes, se usa el resumen semanal guardado solo si la semana cae entera dentro del mes y el resumen sigue vigente. En los demás casos se usan los registros diarios recortados a los días del mes. El prompt agrega «Hechos verificados» (completadas, resultados y tareas abiertas), calculados directamente de los datos.
 - Un resumen queda **desactualizado** cuando cambian los registros de su período (se compara una huella de esos registros).
 

@@ -72,4 +72,21 @@ describe('daily builder', () => {
     assert.match(text, /• \[Plataforma\] Autenticación\n {2}– Implementé endpoints/);
     assert.match(text, /• Deploy staging: Sin acceso al cluster \(bloqueada hace 4 días hábiles\)/);
   });
+
+  it('labels only decisions and groups loose records as «Otros» of their project', () => {
+    const snapshot = createTestSnapshot({
+      projects: [project],
+      tasks: [authTask],
+      activities: [
+        createTestActivity({ date: '2026-11-13', taskId: authTask.id, text: 'Investigué alternativas', kind: 'research' }),
+        createTestActivity({ date: '2026-11-13', taskId: authTask.id, text: 'Usar RS256', kind: 'decision' }),
+        createTestActivity({ date: '2026-11-13', projectId: project.id, text: 'Revisé PRs del equipo', kind: 'note' }),
+      ],
+    });
+    const text = renderDailyText(buildDaily('2026-11-16', snapshot));
+    assert.match(text, /– Investigué alternativas/);
+    assert.doesNotMatch(text, /Investigación:/);
+    assert.match(text, /– Decisión: Usar RS256/);
+    assert.match(text, /• Otros de Plataforma\n {2}– Revisé PRs del equipo/);
+  });
 });

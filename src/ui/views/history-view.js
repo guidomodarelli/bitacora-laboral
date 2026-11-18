@@ -6,6 +6,7 @@ import { formatDateLong, formatDateShort } from '../../domain/date-format.js';
 import { isDateKey } from '../../domain/dates.js';
 import { collectRecordDates, collectRecordsInRange, indexById } from '../../domain/record-grouping.js';
 import { searchRecords } from '../../domain/record-search.js';
+import { formatCount } from '../../domain/text-format.js';
 import { emptyState, projectChip, statusBadge } from '../components.js';
 import { h } from '../dom.js';
 import { activityItem, resultItem, statusChangeItem } from '../record-items.js';
@@ -17,7 +18,6 @@ const OPEN_DAYS_BY_DEFAULT = 2;
 
 const rerender = () => window.dispatchEvent(new Event(RERENDER_EVENT));
 
-/** @param {import('../../domain/record-grouping.js').Snapshot} snapshot */
 function currentRange() {
   const from = uiDrafts.get('history-from', '');
   const to = uiDrafts.get('history-to', '');
@@ -35,7 +35,7 @@ function dayDetails(dateKey, snapshot, isOpen) {
   const tasksById = indexById(snapshot.tasks);
   const count = records.activities.length + records.results.length + records.statusChanges.length;
   return h('details', { class: 'card history-day', open: isOpen },
-    h('summary', {}, h('span', { class: 'history-day__title' }, formatDateLong(dateKey)), h('span', { class: 'hint' }, `${count} registros`)),
+    h('summary', {}, h('span', { class: 'history-day__title' }, formatDateLong(dateKey)), h('span', { class: 'hint' }, formatCount(count, 'registro', 'registros'))),
     h('ul', { class: 'record-list' },
       records.statusChanges.map(({ taskId, change }) => statusChangeItem(change, tasksById.get(taskId))),
       records.results.map((result) => resultItem(result, snapshot)),
@@ -76,7 +76,7 @@ export function renderHistoryView({ snapshot }) {
   if (isSearching) {
     const hits = searchRecords(query, snapshot, { range });
     content = h('section', { class: 'card' },
-      h('h2', {}, hits.length === 1 ? '1 resultado' : `${hits.length} resultados`),
+      h('h2', {}, formatCount(hits.length, 'resultado', 'resultados')),
       hits.length ? h('ul', { class: 'record-list' }, hits.slice(0, SEARCH_RESULTS_LIMIT).map((hit) => searchHitItem(hit, snapshot))) : emptyState('Sin coincidencias.'),
       hits.length > SEARCH_RESULTS_LIMIT ? h('p', { class: 'hint' }, `Se muestran los ${SEARCH_RESULTS_LIMIT} más recientes. Acotá la búsqueda con fechas.`) : null,
     );

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyStatusChange, statusAt, statusChangesInRange, wasCompletedInRange } from '../../src/domain/task-history.js';
+import { applyStatusChange, revertStatusChange, statusAt, statusChangesInRange, wasCompletedInRange } from '../../src/domain/task-history.js';
 import { createTestTask } from '../helpers/snapshot-factory.js';
 
 describe('task history', () => {
@@ -50,5 +50,20 @@ describe('task history', () => {
   it('lists changes in a range without the creation entry', () => {
     const changes = statusChangesInRange(authTask, { start: '2026-11-09', end: '2026-11-15' });
     assert.deepEqual(changes.map((change) => change.to), ['blocked', 'in_progress']);
+  });
+
+  it('undoes a status change and restores the previous status, blocker and completion', () => {
+    const blocked = applyStatusChange(authTask, { status: 'blocked', dateKey: '2026-11-17', atIso: '2026-11-17T10:00:00.000Z', note: 'Rollback pendiente' });
+    const reverted = revertStatusChange(blocked, '2026-11-17T10:00:00.000Z', '2026-11-17T10:00:05.000Z');
+    assert.equal(reverted.status, 'completed');
+    assert.equal(reverted.completedOn, '2026-11-16');
+    assert.equal(reverted.blocker, null);
+    assert.equal(reverted.statusHistory.length, authTask.statusHistory.length);
+  });
+
+  it('never undoes the creation entry and ignores unknown changes', () => {
+    const creationAt = authTask.statusHistory[0].at;
+    assert.equal(revertStatusChange(authTask, creationAt, '2026-11-17T10:00:00.000Z'), authTask);
+    assert.equal(revertStatusChange(authTask, 'missing', '2026-11-17T10:00:00.000Z'), authTask);
   });
 });

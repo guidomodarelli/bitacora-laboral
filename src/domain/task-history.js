@@ -108,7 +108,31 @@ export function applyStatusChange(task, { status, dateKey, atIso, note = '' }) {
     return { ...task, blocker: { reason: trimmedNote, since: task.blocker?.since ?? dateKey }, updatedAt: atIso };
   }
   const statusHistory = [...(task.statusHistory ?? []), { from: task.status, to: status, date: dateKey, at: atIso, note: trimmedNote }];
-  // Un cambio puede registrarse con fecha retroactiva: el estado vigente es el del último cambio por fecha.
+  return withDerivedStatus(task, statusHistory, atIso);
+}
+
+/**
+ * Deshace un cambio de estado registrado: lo quita del historial y recalcula el estado vigente.
+ * La entrada de creación no se puede deshacer.
+ * @param {Task} task
+ * @param {string} changeAtIso Timestamp `at` del cambio a deshacer.
+ * @param {string} atIso Momento en que se deshace.
+ * @returns {Task} La misma tarea si no existe ese cambio.
+ */
+export function revertStatusChange(task, changeAtIso, atIso) {
+  const statusHistory = (task.statusHistory ?? []).filter((change) => change.from === null || change.at !== changeAtIso);
+  if (statusHistory.length === (task.statusHistory ?? []).length) return task;
+  return withDerivedStatus(task, statusHistory, atIso);
+}
+
+/**
+ * Un cambio puede registrarse con fecha retroactiva: el estado vigente es el del último cambio por fecha.
+ * @param {Task} task
+ * @param {StatusChange[]} statusHistory
+ * @param {string} atIso
+ * @returns {Task}
+ */
+function withDerivedStatus(task, statusHistory, atIso) {
   const latestChange = sortedStatusHistory({ ...task, statusHistory }).at(-1);
   return {
     ...task,

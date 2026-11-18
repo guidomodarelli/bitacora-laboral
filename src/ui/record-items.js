@@ -7,6 +7,7 @@ import { todayKey } from '../domain/dates.js';
 import { deleteRecord, duplicateActivity, restoreRecord, updateActivity, updateResult } from '../services/data-store.js';
 import { kindBadge, linkList, projectChip, resultBadge, runAction } from './components.js';
 import { h } from './dom.js';
+import { icon } from './icons.js';
 import { showToast } from './toast.js';
 
 /**
@@ -62,14 +63,14 @@ export function activityItem(activity, snapshot, { showDate = false, showTask = 
       value: activity.text,
       'aria-label': 'Texto de la actividad',
       dataset: { focusKey: `activity-${activity.id}` },
-      onChange: (event) => runAction('recordItems:updateActivity', () => updateActivity(activity.id, { text: event.target.value })),
+      onChange: (event) => runAction('recordItems:updateActivity', () => updateActivity(activity.id, { text: event.target.value }), 'Actividad guardada'),
     }),
     linkList(activity.links),
     h('div', { class: 'record-item__actions' },
       allowDuplicate && activity.date !== today
         ? h('button', { type: 'button', class: 'button button--ghost button--small', onClick: () => runAction('recordItems:duplicate', () => duplicateActivity(activity.id, today), 'Copiada a hoy') }, 'Repetir hoy')
         : null,
-      h('button', { type: 'button', class: 'icon-button', 'aria-label': `Borrar actividad: ${activity.text}`, onClick: () => deleteWithUndo('activities', activity.id, 'Actividad') }, '🗑'),
+      h('button', { type: 'button', class: 'icon-button', 'aria-label': `Borrar actividad: ${activity.text}`, onClick: () => deleteWithUndo('activities', activity.id, 'Actividad') }, icon('trash')),
     ),
   );
 }
@@ -93,11 +94,11 @@ export function resultItem(result, snapshot, { showDate = false, showTask = true
       value: result.description,
       'aria-label': 'Descripción del resultado',
       dataset: { focusKey: `result-${result.id}` },
-      onChange: (event) => runAction('recordItems:updateResult', () => updateResult(result.id, { description: event.target.value })),
+      onChange: (event) => runAction('recordItems:updateResult', () => updateResult(result.id, { description: event.target.value }), 'Resultado guardado'),
     }),
     linkList(result.links),
     h('div', { class: 'record-item__actions' },
-      h('button', { type: 'button', class: 'icon-button', 'aria-label': `Borrar resultado: ${result.description}`, onClick: () => deleteWithUndo('results', result.id, 'Resultado') }, '🗑'),
+      h('button', { type: 'button', class: 'icon-button', 'aria-label': `Borrar resultado: ${result.description}`, onClick: () => deleteWithUndo('results', result.id, 'Resultado') }, icon('trash')),
     ),
   );
 }
@@ -110,7 +111,10 @@ export function resultItem(result, snapshot, { showDate = false, showTask = true
 export function statusChangeItem(change, task, { showTask = true } = {}) {
   return h('li', { class: 'record-item record-item--status' },
     h('div', { class: 'record-item__meta' },
-      h('span', { class: `badge badge--${change.to}` }, change.from === null ? 'Creada' : `→ ${TASK_STATUS_LABELS[change.to]}`),
+      // La creación es un hecho neutro: no se pinta con el color del estado inicial.
+      change.from === null
+        ? h('span', { class: 'badge' }, `Creada · ${TASK_STATUS_LABELS[change.to].toLowerCase()}`)
+        : h('span', { class: `badge badge--${change.to}` }, `→ ${TASK_STATUS_LABELS[change.to]}`),
       showTask ? h('a', { href: `#/tareas/${task.id}`, class: 'record-item__task' }, task.title) : null,
     ),
     change.note ? h('p', { class: 'record-item__note' }, change.note) : null,

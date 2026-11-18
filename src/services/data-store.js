@@ -11,7 +11,7 @@ import { EXPORTABLE_STORES, IMPORT_MODE, SETTINGS_RECORD_ID, STORE, STORE_KEY_PA
 import { TASK_STATUS } from '../constants/task-status.js';
 import { mergeBackupData } from '../domain/backup-format.js';
 import { todayKey } from '../domain/dates.js';
-import { applyStatusChange, createInitialStatusHistory } from '../domain/task-history.js';
+import { applyStatusChange, createInitialStatusHistory, revertStatusChange } from '../domain/task-history.js';
 import { normalizeSearchText } from '../domain/text-search.js';
 
 /**
@@ -207,11 +207,27 @@ export async function updateTask(taskId, patch) {
  * @param {string} taskId
  * @param {import('../constants/task-status.js').TaskStatus} status
  * @param {{dateKey?: string, note?: string}} [options]
+ * @returns {Promise<string|null>} Timestamp del cambio registrado, para poder deshacerlo.
  */
 export async function changeTaskStatus(taskId, status, { dateKey = todayKey(), note = '' } = {}) {
   const task = requireTask(taskId);
-  const updated = applyStatusChange(task, { status, dateKey, atIso: nowIso(), note });
-  if (updated !== task) await commit([put(STORE.TASKS, updated)]);
+  const atIso = nowIso();
+  const updated = applyStatusChange(task, { status, dateKey, atIso, note });
+  if (updated === task) return null;
+  await commit([put(STORE.TASKS, updated)]);
+  // Solo un cambio de estado real agrega una entrada al historial que se pueda deshacer.
+  return updated.statusHistory.length > task.statusHistory.length ? atIso : null;
+}
+
+/**
+ * Deshace un cambio de estado recién registrado.
+ * @param {string} taskId
+ * @param {string} changeAtIso Valor devuelto por `changeTaskStatus`.
+ */
+export async function undoTaskStatusChange(taskId, changeAtIso) {
+  const task = requireTask(taskId);
+  const reverted = revertStatusChange(task, changeAtIso, nowIso());
+  if (reverted !== task) await commit([put(STORE.TASKS, reverted)]);
 }
 
 /**

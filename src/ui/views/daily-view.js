@@ -7,12 +7,19 @@ import { isOpenTaskStatus } from '../../constants/task-status.js';
 import { buildDaily, renderDailyText } from '../../domain/daily-builder.js';
 import { formatDateLong } from '../../domain/date-format.js';
 import { isDateKey, todayKey } from '../../domain/dates.js';
+import { describeBlockedDuration } from '../../domain/text-format.js';
 import { clearDailyDraft, saveDailyDraft, togglePlannedTask } from '../../services/data-store.js';
 import { copyButton, emptyState, projectChip, runAction, statusBadge } from '../components.js';
 import { h } from '../dom.js';
 import { uiDrafts } from '../ui-state.js';
 
 const DAILY_DATE_KEY = 'daily-date';
+/** El texto se muestra entero, sin scroll interno, dentro de estos límites de alto. */
+const DAILY_TEXT_MIN_ROWS = 8;
+const DAILY_TEXT_MAX_ROWS = 40;
+
+/** @param {string} text */
+const rowsForText = (text) => Math.min(DAILY_TEXT_MAX_ROWS, Math.max(DAILY_TEXT_MIN_ROWS, text.split('\n').length + 1));
 /** @type {ReturnType<typeof setTimeout>|undefined} */
 let draftSaveTimer;
 
@@ -26,14 +33,16 @@ export function renderDailyView({ snapshot }) {
   const openTasks = snapshot.tasks.filter((task) => isOpenTaskStatus(task.status));
 
   const draftStatus = h('span', { class: 'hint', role: 'status' }, draft ? 'Editada manualmente' : 'Generada automáticamente');
+  const initialText = draft?.text ?? generatedText;
   const textarea = h('textarea', {
     class: 'daily-text',
-    rows: 16,
+    rows: rowsForText(initialText),
     'aria-label': 'Texto de la daily',
-    value: draft?.text ?? generatedText,
+    value: initialText,
     dataset: { focusKey: `daily-text-${dateKey}` },
     onInput: (event) => {
       const text = event.target.value;
+      event.target.rows = rowsForText(text);
       draftStatus.textContent = 'Guardando…';
       clearTimeout(draftSaveTimer);
       draftSaveTimer = setTimeout(async () => {
@@ -69,11 +78,12 @@ export function renderDailyView({ snapshot }) {
       h('section', { class: 'card' },
         h('div', { class: 'card-header' }, h('h2', {}, 'Texto para la reunión'), draftStatus),
         h('p', { class: 'hint' }, previousInfo),
-        draft && draft.text !== generatedText ? h('p', { class: 'hint' }, 'Si cambiaste registros o el plan después de editar, usá «Regenerar» para incluirlos.') : null,
+        draft && draft.text !== generatedText ? h('p', { class: 'banner' }, 'Editaste este texto. Si después cambiaste registros o el plan, «Volver al texto generado» los incluye (perdés tus ediciones).') : null,
         textarea,
         h('div', { class: 'form-actions' },
           copyButton('Copiar daily', () => textarea.value, { successMessage: 'Daily copiada' }),
-          h('button', { type: 'button', class: 'button', disabled: !draft, onClick: () => runAction('daily:clearDailyDraft', () => clearDailyDraft(dateKey), 'Daily regenerada') }, 'Regenerar'),
+          // Solo hay algo que regenerar si el texto se editó a mano.
+          draft ? h('button', { type: 'button', class: 'button', onClick: () => runAction('daily:clearDailyDraft', () => clearDailyDraft(dateKey), 'Daily regenerada con los registros actuales') }, 'Volver al texto generado') : null,
         ),
       ),
       h('div', { class: 'stack' },
@@ -100,7 +110,7 @@ export function renderDailyView({ snapshot }) {
               h('a', { href: `#/tareas/${blocker.task.id}` }, blocker.task.title),
               h('p', { class: 'record-item__note' }, blocker.reason || 'Sin motivo registrado'),
               h('p', { class: blocker.isProlonged ? 'text-danger' : 'hint' },
-                `${blocker.workdaysBlocked} días hábiles bloqueada${blocker.isProlonged ? ' · lleva demasiado, conviene escalarlo' : ''}`),
+                `Bloqueada ${describeBlockedDuration(blocker.workdaysBlocked)}${blocker.isProlonged ? ' · conviene escalarlo' : ''}`),
             )))
             : emptyState('Sin bloqueos.'),
         ),

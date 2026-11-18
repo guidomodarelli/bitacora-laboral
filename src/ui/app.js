@@ -4,6 +4,7 @@
 import { DEFAULT_ROUTE, NAVIGATION_ITEMS, QUICK_CAPTURE_SHORTCUT_KEY, RERENDER_EVENT, ROUTE, buildRouteHash } from '../constants/routes.js';
 import { getSnapshot, subscribe } from '../services/data-store.js';
 import { h } from './dom.js';
+import { backupIndicator, shortcutsHelp } from './header-tools.js';
 import { renderDailyView } from './views/daily-view.js';
 import { renderHistoryView } from './views/history-view.js';
 import { renderMonthlyView, renderWeeklyView } from './views/period-views.js';
@@ -75,12 +76,14 @@ function restoreViewState(container, state) {
 
 /** @param {HTMLElement} root */
 export function startApp(root) {
-  const navigationLinks = NAVIGATION_ITEMS.map((item) => h('a', { href: buildRouteHash(item.route), class: 'nav-link', title: `Alt+${item.shortcut}` }, item.label));
+  const navigationLinks = NAVIGATION_ITEMS.map((item) => h('a', { href: buildRouteHash(item.route), class: 'nav-link', title: `Alt+${item.shortcut}`, 'aria-keyshortcuts': `Alt+${item.shortcut}` }, item.label));
+  const backupSlot = h('div', { class: 'header-tools__backup' });
   const main = h('main', { id: 'view', tabindex: '-1' });
   root.replaceChildren(
     h('header', { class: 'app-header' },
       h('a', { href: buildRouteHash(ROUTE.TODAY), class: 'app-brand' }, 'Bitácora'),
       h('nav', { class: 'app-nav', 'aria-label': 'Secciones' }, navigationLinks),
+      h('div', { class: 'header-tools' }, backupSlot, shortcutsHelp()),
     ),
     main,
   );
@@ -90,12 +93,18 @@ export function startApp(root) {
     const { route, param } = parseRoute();
     const routeKey = `${route}/${param ?? ''}`;
     const state = routeKey === renderedRoute ? captureViewState(main) : null;
-    const view = VIEW_RENDERERS[route]({ snapshot: getSnapshot(), param });
+    const snapshot = getSnapshot();
+    const view = VIEW_RENDERERS[route]({ snapshot, param });
+    backupSlot.replaceChildren(backupIndicator(snapshot) ?? '');
     // La animación de entrada solo al navegar, no en cada actualización de datos.
     if (!state) view.classList.add('view--enter');
     main.replaceChildren(view);
     NAVIGATION_ITEMS.forEach((item, index) => {
-      if (item.route === route) navigationLinks[index].setAttribute('aria-current', 'page');
+      if (item.route === route) {
+        navigationLinks[index].setAttribute('aria-current', 'page');
+        // En pantallas angostas la navegación se desplaza: la sección activa siempre queda a la vista.
+        if (!state) navigationLinks[index].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
       else navigationLinks[index].removeAttribute('aria-current');
     });
     if (state) restoreViewState(main, state);

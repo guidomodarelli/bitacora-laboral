@@ -217,20 +217,10 @@ export function summaryEditor({ kind, periodId, summary, isStale, sourceFingerpr
     if (saved) uiDrafts.delete(draftKey);
   };
   return h('section', { class: 'card' },
-    h('h2', {}, 'Resumen guardado'),
-    summary ? h('p', { class: 'hint' }, `Guardado: ${formatTimestamp(summary.savedAt)}`) : h('p', { class: 'hint' }, 'Todavía no guardaste un resumen para este período.'),
+    h('h2', {}, 'Resumen de la IA'),
+    summary ? h('p', { class: 'hint' }, `Guardado: ${formatTimestamp(summary.savedAt)}`) : h('p', { class: 'hint' }, 'Copiá el prompt, pegalo en tu herramienta de IA y guardá acá lo que te devuelva.'),
     isStale ? h('p', { class: 'banner banner--warning', role: 'status' }, 'Hay registros de este período que cambiaron después de guardar el resumen. Conviene regenerarlo.') : null,
     textarea,
     h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'button button--primary', onClick: save }, summary ? 'Actualizar resumen' : 'Guardar resumen')),
   );
-}
-
-/**
- * Pide el motivo del bloqueo cuando corresponde.
- * @param {import('../constants/task-status.js').TaskStatus} status
- * @returns {string|null} `null` si el usuario canceló.
- */
-export function askStatusNote(status) {
-  if (status !== TASK_STATUS.BLOCKED) return '';
-  return window.prompt('¿Qué la bloquea? (dependencia, problema, a quién esperás)', '');
 }

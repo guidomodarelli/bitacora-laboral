@@ -6,6 +6,7 @@ import { TASK_STATUS, TASK_STATUS_LABELS } from '../constants/task-status.js';
 import { formatDateLong } from './date-format.js';
 import { collectRecordDates, collectRecordsInRange, groupRecordsByTask, indexById } from './record-grouping.js';
 import { countWorkdaysSince, previousWorkday } from './workdays.js';
+import { describeBlockedDuration } from './text-format.js';
 
 /**
  * @typedef {import('./record-grouping.js').Snapshot} Snapshot
@@ -97,11 +98,17 @@ export function buildDaily(dateKey, snapshot) {
 }
 
 /**
+ * Tipos que se rotulan en la daily. El resto se entiende por el texto
+ * («Investigué…», «Reunión con…») y el rótulo solo lo repetiría.
+ */
+const DAILY_LABELED_ACTIVITY_KINDS = new Set([ACTIVITY_KIND.DECISION]);
+
+/**
  * @param {{task: Task|null, project: {name: string}|null}} item
  */
 function describeTaskItem({ task, project }) {
-  const projectPrefix = project ? `[${project.name}] ` : '';
-  return `${projectPrefix}${task ? task.title : 'Sin tarea'}`;
+  if (!task) return project ? `Otros de ${project.name}` : 'Otros';
+  return project ? `[${project.name}] ${task.title}` : task.title;
 }
 
 /**
@@ -118,7 +125,7 @@ export function renderDailyText(daily) {
   for (const group of daily.previous.groups) {
     lines.push(`• ${describeTaskItem(group)}`);
     for (const activity of group.activities) {
-      const kindPrefix = activity.kind === ACTIVITY_KIND.WORK ? '' : `${ACTIVITY_KIND_LABELS[activity.kind]}: `;
+      const kindPrefix = DAILY_LABELED_ACTIVITY_KINDS.has(activity.kind) ? `${ACTIVITY_KIND_LABELS[activity.kind]}: ` : '';
       lines.push(`  – ${kindPrefix}${activity.text}`);
     }
     for (const change of group.statusChanges) {
@@ -139,8 +146,7 @@ export function renderDailyText(daily) {
   if (daily.blockers.length === 0) lines.push('• Sin bloqueos.');
   for (const blocker of daily.blockers) {
     const reason = blocker.reason ? `: ${blocker.reason}` : '';
-    const workdayWord = blocker.workdaysBlocked === 1 ? 'día hábil' : 'días hábiles';
-    lines.push(`• ${describeTaskItem(blocker)}${reason} (bloqueada hace ${blocker.workdaysBlocked} ${workdayWord})`);
+    lines.push(`• ${describeTaskItem(blocker)}${reason} (bloqueada ${describeBlockedDuration(blocker.workdaysBlocked)})`);
   }
 
   return lines.join('\n');
